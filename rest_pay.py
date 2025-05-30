@@ -17,14 +17,14 @@ def calculate_debts():
     col1, col2 = st.columns(2)
     with col1:
         new_person = st.text_input("Добавить нового участника")
-        if st.button("Добавить") and new_person:
+        if st.button("Добавить участника") and new_person:
             st.session_state.people.append(new_person)
             st.rerun()
     
     with col2:
         if st.session_state.people:
             to_remove = st.selectbox("Удалить участника", st.session_state.people)
-            if st.button("Удалить"):
+            if st.button("Удалить участника"):
                 st.session_state.people.remove(to_remove)
                 st.rerun()
 
@@ -46,7 +46,7 @@ def calculate_debts():
             default=default_consumers
         )
         
-        submitted = st.button("Добавить счёт")
+        submitted = st.form_submit_button("Добавить счёт")
         if submitted and place and amount and payer and consumers:
             new_bill = {
                 "Заведение": place,
@@ -99,7 +99,7 @@ def calculate_debts():
             "Участник": st.session_state.people,
             "Оплатил": [total_spent[p] for p in st.session_state.people],
             "Доля": [total_share[p] for p in st.session_state.people],
-            "Баланс": [total_spent[p] - total_share[p] for p in st.session_state.people]
+            "Баланс": [round(total_spent[p] - total_share[p], 2) for p in st.session_state.people]
         })
         st.dataframe(stats_df)
         
