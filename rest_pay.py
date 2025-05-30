@@ -1,5 +1,21 @@
 import streamlit as st
 import pandas as pd
+import json
+from io import BytesIO
+
+def save_data_to_json():
+    """Сохраняет данные в JSON формате"""
+    data = {
+        'people': st.session_state.people,
+        'bills': st.session_state.bills.to_dict('records')
+    }
+    return json.dumps(data)
+
+def load_data_from_json(uploaded_file):
+    """Загружает данные из JSON файла"""
+    data = json.load(uploaded_file)
+    st.session_state.people = data['people']
+    st.session_state.bills = pd.DataFrame(data['bills'])
 
 def calculate_debts():
     st.title("🍽️ Калькулятор долгов в ресторане")
@@ -61,14 +77,46 @@ def calculate_debts():
             ], ignore_index=True)
             st.rerun()
 
-    # Показать добавленные счета
+    # Управление счетами
     if not st.session_state.bills.empty:
+        st.subheader("Управление счетами")
+        
+        # Экспорт данных
+        st.download_button(
+            label="Сохранить данные",
+            data=save_data_to_json(),
+            file_name="restaurant_bills.json",
+            mime="application/json"
+        )
+        
+        # Импорт данных
+        uploaded_file = st.file_uploader("Загрузить сохранённые данные", type="json")
+        if uploaded_file is not None:
+            load_data_from_json(uploaded_file)
+            st.rerun()
+        
+        # Удаление счетов
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Очистить все счета"):
+                st.session_state.bills = pd.DataFrame(columns=["Заведение", "Сумма", "Оплативший", "Участники"])
+                st.rerun()
+        
+        with col2:
+            if not st.session_state.bills.empty:
+                bill_to_remove = st.selectbox(
+                    "Выберите счёт для удаления",
+                    st.session_state.bills["Заведение"] + " (" + st.session_state.bills["Сумма"].astype(str) + " руб)"
+                )
+                if st.button("Удалить выбранный счёт"):
+                    index_to_remove = st.session_state.bills.index[
+                        (st.session_state.bills["Заведение"] + " (" + st.session_state.bills["Сумма"].astype(str) + " руб)") == bill_to_remove
+                    ].tolist()[0]
+                    st.session_state.bills = st.session_state.bills.drop(index_to_remove).reset_index(drop=True)
+                    st.rerun()
+
         st.subheader("Добавленные счета")
         st.dataframe(st.session_state.bills)
-        
-        if st.button("Очистить все счета"):
-            st.session_state.bills = pd.DataFrame(columns=["Заведение", "Сумма", "Оплативший", "Участники"])
-            st.rerun()
 
     # Расчет долгов
     if not st.session_state.bills.empty and st.session_state.people:
