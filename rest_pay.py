@@ -5,97 +5,133 @@ def calculate_debts():
     st.title("🍽️ Калькулятор долгов в ресторане")
     st.write("Рассчитаем, кто сколько должен после вечера в ресторане")
 
-    # Ввод участников
+    # Инициализация данных в session state
+    if 'people' not in st.session_state:
+        st.session_state.people = ["Иха", "Локи", "Влад"]
+    if 'bills' not in st.session_state:
+        st.session_state.bills = pd.DataFrame(columns=["Заведение", "Сумма", "Оплативший", "Участники"])
+
+    # Управление участниками
     st.header("1. Участники")
-    num_people = st.number_input("Количество человек", min_value=2, max_value=20, value=4)
     
-    people = []
-    for i in range(num_people):
-        name = st.text_input(f"Имя участника {i+1}", value=f"Участник {i+1}")
-        people.append(name)
+    col1, col2 = st.columns(2)
+    with col1:
+        new_person = st.text_input("Добавить нового участника")
+        if st.button("Добавить") and new_person:
+            st.session_state.people.append(new_person)
+            st.rerun()
+    
+    with col2:
+        if st.session_state.people:
+            to_remove = st.selectbox("Удалить участника", st.session_state.people)
+            if st.button("Удалить"):
+                st.session_state.people.remove(to_remove)
+                st.rerun()
 
-    # Ввод заказов
-    st.header("2. Заказы и расходы")
-    st.write("Укажите, кто что заказывал и сколько это стоило")
+    st.write("Текущие участники:", ", ".join(st.session_state.people))
 
-    orders = []
-    if 'orders_df' not in st.session_state:
-        st.session_state.orders_df = pd.DataFrame(columns=["Позиция", "Стоимость", "Кто ел"])
-
-    with st.form("order_form"):
-        item = st.text_input("Позиция в меню (например, 'Пицца Маргарита')")
-        cost = st.number_input("Стоимость (руб)", min_value=0, value=500)
-        consumers = st.multiselect("Кто ел эту позицию", people)
+    # Добавление счетов
+    st.header("2. Добавление счетов")
+    
+    with st.form("bill_form"):
+        place = st.text_input("Заведение (название ресторана/бара)")
+        amount = st.number_input("Сумма счёта (руб)", min_value=1, value=1000)
+        payer = st.selectbox("Кто оплатил", st.session_state.people)
         
-        submitted = st.form_submit_button("Добавить заказ")
-        if submitted and item and cost > 0 and consumers:
-            new_order = {
-                "Позиция": item,
-                "Стоимость": cost,
-                "Кто ел": ", ".join(consumers),
-                "На человека": cost / len(consumers) if len(consumers) > 0 else 0
+        # Выбор участников для этого счета
+        default_consumers = st.session_state.people
+        consumers = st.multiselect(
+            "Кто участвовал (по умолчанию все)", 
+            st.session_state.people, 
+            default=default_consumers
+        )
+        
+        submitted = st.button("Добавить счёт")
+        if submitted and place and amount and payer and consumers:
+            new_bill = {
+                "Заведение": place,
+                "Сумма": amount,
+                "Оплативший": payer,
+                "Участники": ", ".join(consumers),
+                "Доля на человека": amount / len(consumers) if consumers else 0
             }
-            st.session_state.orders_df = pd.concat([
-                st.session_state.orders_df, 
-                pd.DataFrame([new_order])
+            st.session_state.bills = pd.concat([
+                st.session_state.bills, 
+                pd.DataFrame([new_bill])
             ], ignore_index=True)
+            st.rerun()
 
-    # Показать добавленные заказы
-    if not st.session_state.orders_df.empty:
-        st.subheader("Добавленные заказы")
-        st.dataframe(st.session_state.orders_df)
+    # Показать добавленные счета
+    if not st.session_state.bills.empty:
+        st.subheader("Добавленные счета")
+        st.dataframe(st.session_state.bills)
         
-        if st.button("Очистить все заказы"):
-            st.session_state.orders_df = pd.DataFrame(columns=["Позиция", "Стоимость", "Кто ел"])
+        if st.button("Очистить все счета"):
+            st.session_state.bills = pd.DataFrame(columns=["Заведение", "Сумма", "Оплативший", "Участники"])
             st.rerun()
 
     # Расчет долгов
-    if not st.session_state.orders_df.empty:
+    if not st.session_state.bills.empty and st.session_state.people:
         st.header("3. Итоговые расчеты")
         
-        # Рассчет долгов
-        debts = {person: 0 for person in people}
-        for _, row in st.session_state.orders_df.iterrows():
-            cost_per_person = row['Стоимость'] / len(row['Кто ел'].split(', '))
-            for person in row['Кто ел'].split(', '):
-                debts[person.strip()] += cost_per_person
+        # Рассчет: сколько каждый должен в идеале
+        total_spent = {person: 0 for person in st.session_state.people}
+        total_share = {person: 0 for person in st.session_state.people}
         
-        # Рассчет общего счета
-        total = sum(debts.values())
-        st.subheader(f"Общий счет: {total:.2f} руб")
+        for _, bill in st.session_state.bills.iterrows():
+            # Кто оплатил
+            payer = bill['Оплативший']
+            total_spent[payer] += bill['Сумма']
+            
+            # Доли участников
+            participants = bill['Участники'].split(', ')
+            share = bill['Сумма'] / len(participants)
+            for person in participants:
+                total_share[person.strip()] += share
         
-        # Показать долги каждого
-        st.subheader("Долги каждого участника:")
-        debts_df = pd.DataFrame.from_dict(debts, orient='index', columns=['Долг'])
-        debts_df["Долг"] = debts_df["Долг"].round(2)
-        st.dataframe(debts_df)
+        # Общая сумма
+        total = sum(total_spent.values())
+        st.subheader(f"Общая сумма расходов: {total:.2f} руб")
+        
+        # Показать сколько каждый оплатил и его долю
+        st.subheader("Статистика по участникам:")
+        stats_df = pd.DataFrame({
+            "Участник": st.session_state.people,
+            "Оплатил": [total_spent[p] for p in st.session_state.people],
+            "Доля": [total_share[p] for p in st.session_state.people],
+            "Баланс": [total_spent[p] - total_share[p] for p in st.session_state.people]
+        })
+        st.dataframe(stats_df)
         
         # Рассчет переводов
         st.subheader("Кому сколько перевести:")
-        avg = total / len(people)
-        payers = {p: d - avg for p, d in debts.items()}
+        
+        balances = {p: total_spent[p] - total_share[p] for p in st.session_state.people}
+        debtors = {p: -b for p, b in balances.items() if b < 0}
+        creditors = {p: b for p, b in balances.items() if b > 0}
         
         transactions = []
-        debtors = {p: a for p, a in payers.items() if a < 0}
-        creditors = {p: a for p, a in payers.items() if a > 0}
-        
         for creditor, amount in creditors.items():
             remaining = amount
-            for debtor, debt in debtors.items():
+            for debtor in debtors:
                 if remaining <= 0:
                     break
-                if debt < 0:
-                    transfer = min(remaining, -debt)
-                    transactions.append({
-                        "От": debtor,
-                        "Кому": creditor,
-                        "Сумма": transfer
-                    })
-                    remaining -= transfer
-                    debtors[debtor] += transfer
+                if debtors[debtor] > 0:
+                    transfer = min(remaining, debtors[debtor])
+                    if transfer > 1:  # Не показывать переводы меньше 1 рубля
+                        transactions.append({
+                            "От": debtor,
+                            "Кому": creditor,
+                            "Сумма": round(transfer, 2)
+                        })
+                        remaining -= transfer
+                        debtors[debtor] -= transfer
         
-        transactions_df = pd.DataFrame(transactions)
-        st.dataframe(transactions_df)
+        if transactions:
+            transactions_df = pd.DataFrame(transactions)
+            st.dataframe(transactions_df)
+        else:
+            st.success("Все сбалансировано, переводы не требуются!")
 
 if __name__ == "__main__":
     calculate_debts()
