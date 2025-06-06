@@ -4,6 +4,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from gspread-dataframe import set_with_dataframe
 
+
 # Настройки Google Sheets
 SHEET_ID = "1M2OrKITimaLlWAs3yTqchsESFNdUxitZnfQ65k4bIXI"
 WORKSHEET_NAME = "test"
