@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from google.oauth2.service_account import Credentials
 from gspread-dataframe import set_with_dataframe
+from google.oauth2.service_account import Credentials
+
 
 
 # Настройки Google Sheets
