@@ -25,11 +25,31 @@ def connect_to_gsheet():
     client = gspread.authorize(credentials)
     return client
 
+'''
 def get_sheet_data():
     client = connect_to_gsheet()
     sheet = client.open_by_key(SHEET_ID).worksheet(WORKSHEET_NAME)
     data = sheet.get_all_records()
     return pd.DataFrame(data), sheet
+'''
+def get_sheet_data():
+    client = connect_to_gsheet()
+    sheet = client.open_by_key(SHEET_ID).worksheet(WORKSHEET_NAME)
+    
+    # Вариант 1: с явным указанием заголовков
+    expected_headers = ["Кто платил", "Описание трат", "Сумма чека", "Иха", "Влад", "Локи"]
+    data = sheet.get_all_records(expected_headers=expected_headers)
+    
+    # Вариант 2: ручная обработка (надежнее)
+    raw_data = sheet.get_all_values()
+    if not raw_data:
+        return pd.DataFrame(columns=expected_headers), sheet
+        
+    headers = raw_data[0]
+    records = raw_data[1:]
+    df = pd.DataFrame(records, columns=headers)
+    
+    return df, sheet
 
 def update_sheet(sheet, df):
     # Очищаем лист, кроме заголовков
