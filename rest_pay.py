@@ -1,10 +1,8 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from gspread_dataframe import set_with_dataframe
 from google.oauth2.service_account import Credentials
-
-
+from gspread_dataframe import set_with_dataframe
 
 # Настройки Google Sheets
 SHEET_ID = "1M2OrKITimaLlWAs3yTqchsESFNdUxitZnfQ65k4bIXI"
@@ -25,146 +23,176 @@ def connect_to_gsheet():
     client = gspread.authorize(credentials)
     return client
 
-'''
-def get_sheet_data():
-    client = connect_to_gsheet()
-    sheet = client.open_by_key(SHEET_ID).worksheet(WORKSHEET_NAME)
-    data = sheet.get_all_records()
-    return pd.DataFrame(data), sheet
-'''
 def get_sheet_data():
     client = connect_to_gsheet()
     sheet = client.open_by_key(SHEET_ID).worksheet(WORKSHEET_NAME)
     
-    # Вариант 1: с явным указанием заголовков
-    expected_headers = ["Кто платил", "Описание трат", "Сумма чека", "Иха", "Влад", "Локи"]
-    data = sheet.get_all_records(expected_headers=expected_headers)
-    
-    # Вариант 2: ручная обработка (надежнее)
-    raw_data = sheet.get_all_values()
-    if not raw_data:
+    # Обработка данных с проверкой заголовков
+    try:
+        expected_headers = ["Кто платил", "Описание трат", "Сумма чека", "Иха", "Влад", "Локи"]
+        data = sheet.get_all_records(expected_headers=expected_headers)
+        return pd.DataFrame(data), sheet
+    except Exception as e:
+        st.error(f"Ошибка загрузки данных: {e}")
         return pd.DataFrame(columns=expected_headers), sheet
-        
-    headers = raw_data[0]
-    records = raw_data[1:]
-    df = pd.DataFrame(records, columns=headers)
-    
-    return df, sheet
 
 def update_sheet(sheet, df):
-    # Очищаем лист, кроме заголовков
     sheet.clear()
-    # Записываем данные с заголовками
     set_with_dataframe(sheet, df)
 
 def calculate_debts():
     st.title("🍽️ Калькулятор долгов с синхронизацией Google Sheets")
     
-    # Загружаем данные из Google Sheets
-    try:
-        df, sheet = get_sheet_data()
-        st.session_state.people = [col for col in df.columns if col not in ["Кто платил", "Описание трат", "Сумма чека"]]
-    except Exception as e:
-        st.error(f"Ошибка загрузки данных: {e}")
-        df = pd.DataFrame(columns=["Кто платил", "Описание трат", "Сумма чека"] + ["Иха", "Влад", "Локи"])
+    # Инициализация данных
+    if 'people' not in st.session_state:
         st.session_state.people = ["Иха", "Влад", "Локи"]
     
-    # Основной интерфейс
-    st.header("1. Добавление новых трат")
+    # Загрузка данных
+    try:
+        df, sheet = get_sheet_data()
+    except Exception as e:
+        st.error(f"Ошибка: {str(e)}")
+        df = pd.DataFrame(columns=["Кто платил", "Описание трат", "Сумма чека"] + st.session_state.people)
+        sheet = None
+
+    # Управление участниками
+    st.header("1. Участники")
+    col1, col2 = st.columns(2)
     
-    with st.form("expense_form"):
-        payer = st.selectbox("Кто платил", st.session_state.people)
-        description = st.text_input("Описание трат (место/ресторан)")
-        amount = st.number_input("Сумма чека", min_value=1, value=1000)
+    with col1:
+        new_person = st.text_input("Добавить участника", key="new_person_input")
+        if st.button("Добавить", key="add_person_btn"):
+            if new_person and new_person not in st.session_state.people:
+                st.session_state.people.append(new_person)
+                st.rerun()
+    
+    with col2:
+        if st.session_state.people:
+            to_remove = st.selectbox(
+                "Выберите участника для удаления", 
+                st.session_state.people,
+                key="remove_person_select"
+            )
+            if st.button("Удалить", key="remove_person_btn"):
+                st.session_state.people.remove(to_remove)
+                st.rerun()
+
+    st.write("Текущие участники:", ", ".join(st.session_state.people))
+
+    # Форма добавления трат
+    st.header("2. Добавление трат")
+    with st.form("expense_form", clear_on_submit=True):
+        payer = st.selectbox(
+            "Кто оплатил", 
+            st.session_state.people,
+            key="payer_select"
+        )
+        description = st.text_input(
+            "Описание трат (место/ресторан)", 
+            key="description_input"
+        )
+        amount = st.number_input(
+            "Сумма чека", 
+            min_value=1, 
+            value=1000,
+            key="amount_input"
+        )
         
-        st.write("Кто участвовал в этой трате:")
+        st.write("Кто участвовал:")
         participants = {}
         cols = st.columns(3)
         for i, person in enumerate(st.session_state.people):
             with cols[i % 3]:
-                participants[person] = st.checkbox(person, value=True, key=f"part_{person}")
+                participants[person] = st.checkbox(
+                    person, 
+                    value=True, 
+                    key=f"participant_{person}_{i}"
+                )
         
-        submitted = st.form_submit_button("Добавить трату")
+        submitted = st.form_submit_button(
+            "Добавить трату", 
+            key="submit_expense_btn"
+        )
         
         if submitted:
-            new_row = {
-                "Кто платил": payer,
-                "Описание трат": description,
-                "Сумма чека": amount
-            }
-            for person in st.session_state.people:
-                new_row[person] = 1 if participants[person] else 0
-            
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            try:
-                update_sheet(sheet, df)
-                st.success("Трата успешно добавлена в Google Sheets!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Ошибка сохранения: {e}")
+            if not description:
+                st.error("Введите описание трат")
+            elif amount <= 0:
+                st.error("Сумма должна быть положительной")
+            else:
+                new_row = {
+                    "Кто платил": payer,
+                    "Описание трат": description,
+                    "Сумма чека": amount,
+                    **{p: 1 if participants[p] else 0 for p in st.session_state.people}
+                }
+                
+                try:
+                    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                    if sheet:
+                        update_sheet(sheet, df)
+                    st.success("Трата добавлена!")
+                except Exception as e:
+                    st.error(f"Ошибка сохранения: {str(e)}")
 
-    # Просмотр и редактирование данных
-    st.header("2. Текущие траты")
-    st.dataframe(df)
-    
-    # Удаление трат
-    st.header("3. Управление данными")
-    
+    # Просмотр данных
+    st.header("3. Текущие траты")
     if not df.empty:
-        with st.expander("Удалить траты"):
-            selected_indices = st.multiselect(
-                "Выберите траты для удаления (по описанию)",
-                df["Описание трат"] + " (" + df["Сумма чека"].astype(str) + " руб)"
-            )
-            
-            if st.button("Удалить выбранные"):
+        st.dataframe(df)
+        
+        # Удаление трат
+        st.subheader("Управление данными")
+        selected_indices = st.multiselect(
+            "Выберите траты для удаления",
+            df["Описание трат"] + " (" + df["Сумма чека"].astype(str) + " руб)",
+            key="expenses_to_delete"
+        )
+        
+        if st.button("Удалить выбранные", key="delete_selected_btn"):
+            if selected_indices:
                 mask = ~(df["Описание трат"] + " (" + df["Сумма чека"].astype(str) + " руб)").isin(selected_indices)
                 df = df[mask]
                 try:
-                    update_sheet(sheet, df)
+                    if sheet:
+                        update_sheet(sheet, df)
                     st.success("Траты удалены!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Ошибка сохранения: {e}")
-    
+                    st.error(f"Ошибка: {str(e)}")
+            else:
+                st.warning("Выберите траты для удаления")
+
     # Расчет долгов
-    st.header("4. Расчет долгов")
-    
-    if not df.empty:
-        # Рассчет: сколько каждый должен в идеале
-        total_spent = {person: 0 for person in st.session_state.people}
-        total_share = {person: 0 for person in st.session_state.people}
+    if not df.empty and st.session_state.people:
+        st.header("4. Расчет долгов")
+        
+        total_spent = {p: 0 for p in st.session_state.people}
+        total_share = {p: 0 for p in st.session_state.people}
         
         for _, row in df.iterrows():
-            # Кто оплатил
             payer = row['Кто платил']
             total_spent[payer] += row['Сумма чека']
             
-            # Доли участников
             participants = [p for p in st.session_state.people if row[p] == 1]
             if participants:
                 share = row['Сумма чека'] / len(participants)
-                for person in participants:
-                    total_share[person] += share
+                for p in participants:
+                    total_share[p] += share
         
-        # Общая сумма
+        # Вывод результатов
         total = sum(total_spent.values())
         st.subheader(f"Общая сумма расходов: {total:.2f} руб")
         
-        # Показать сколько каждый оплатил и его долю
-        st.subheader("Статистика по участникам:")
-        stats_df = pd.DataFrame({
-            "Участник": st.session_state.people,
-            "Оплатил": [total_spent[p] for p in st.session_state.people],
-            "Доля": [total_share[p] for p in st.session_state.people],
-            "Баланс": [round(total_spent[p] - total_share[p], 2) for p in st.session_state.people]
-        })
-        st.dataframe(stats_df)
-        
-        # Рассчет переводов
-        st.subheader("Кому сколько перевести:")
-        
+        st.subheader("Баланс участников:")
         balances = {p: total_spent[p] - total_share[p] for p in st.session_state.people}
+        balances_df = pd.DataFrame({
+            "Участник": balances.keys(),
+            "Баланс": [round(b, 2) for b in balances.values()]
+        })
+        st.dataframe(balances_df)
+        
+        # Расчет переводов
+        st.subheader("Рекомендуемые переводы:")
         debtors = {p: -b for p, b in balances.items() if b < 0}
         creditors = {p: b for p, b in balances.items() if b > 0}
         
@@ -176,7 +204,7 @@ def calculate_debts():
                     break
                 if debtors[debtor] > 0:
                     transfer = min(remaining, debtors[debtor])
-                    if transfer > 1:  # Не показывать переводы меньше 1 рубля
+                    if transfer > 1:
                         transactions.append({
                             "От": debtor,
                             "Кому": creditor,
@@ -186,23 +214,9 @@ def calculate_debts():
                         debtors[debtor] -= transfer
         
         if transactions:
-            transactions_df = pd.DataFrame(transactions)
-            st.dataframe(transactions_df)
+            st.dataframe(pd.DataFrame(transactions))
         else:
-            st.success("Все сбалансировано, переводы не требуются!")
+            st.success("Все сбалансировано!")
 
 if __name__ == "__main__":
-    # Необходимо добавить секреты в secrets.toml:
-    # [gcp_service_account]
-    # type = "service_account"
-    # project_id = "..."
-    # private_key_id = "..."
-    # private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-    # client_email = "..."
-    # client_id = "..."
-    # auth_uri = "https://accounts.google.com/o/oauth2/auth"
-    # token_uri = "https://oauth2.googleapis.com/token"
-    # auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
-    # client_x509_cert_url = "..."
-    
     calculate_debts()
