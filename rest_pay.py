@@ -131,7 +131,7 @@ def calculate_debts(df):
     })
 
 def main():
-    st.title("🍽️ Калькулятор долгов")
+    st.title("🍽️ Пробухатор")
     
     df, sheet = get_sheet_data()
     
