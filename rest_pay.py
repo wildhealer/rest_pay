@@ -76,7 +76,7 @@ def get_sheet_data():
             
         df = pd.DataFrame(processed_data)
         # Отладочный вывод
-        #st.write("Загруженные данные из Google Sheets:", df)
+        st.write("Загруженные данные из Google Sheets:", df)
         return df, sheet
     except Exception as e:
         st.error(f"Ошибка загрузки: {str(e)}")
@@ -97,7 +97,7 @@ def update_sheet(sheet, df):
                 lambda x: x.strftime('%d.%m.%Y') if pd.notnull(x) else ''
             )
         # Отладочный вывод
-        #st.write("Данные для сохранения в Google Sheets:", df_to_save)
+        st.write("Данные для сохранения в Google Sheets:", df_to_save)
         sheet.clear()
         set_with_dataframe(sheet, df_to_save)
     except Exception as e:
@@ -131,7 +131,25 @@ def calculate_debts(df):
     })
 
 def main():
-    st.title("🍽️ Пробухатор")
+    st.title("🍽️ Калькулятор долгов")
+    
+    # Inject custom CSS for the button
+    st.markdown("""
+        <style>
+        div.stButton > button {
+            background-color: #90EE90; /* Light green */
+            color: black;
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+        }
+        div.stButton > button:hover {
+            background-color: #78DA78; /* Slightly darker green on hover */
+            color: black;
+        }
+        </style>
+    """, unsafe_allow_html=True)
     
     df, sheet = get_sheet_data()
     
@@ -145,8 +163,12 @@ def main():
             date = st.date_input("Дата", value=datetime.today())
             
             st.write("Участники:")
-            participants = {p: st.checkbox(p, value=True, key=f"part_{p}") 
-                          for p in DEFAULT_PEOPLE}
+            # Horizontal layout for checkboxes
+            cols = st.columns(len(DEFAULT_PEOPLE))
+            participants = {}
+            for idx, person in enumerate(DEFAULT_PEOPLE):
+                with cols[idx]:
+                    participants[person] = st.checkbox(person, value=True, key=f"part_{person}")
             
             if st.form_submit_button("Добавить"):
                 if not description:
@@ -163,6 +185,11 @@ def main():
                     update_sheet(sheet, df)
                     st.success("Добавлено!")
                     st.rerun()
+        
+        # Display balances below the form
+        st.subheader("Текущий баланс")
+        balances = calculate_debts(df)
+        st.dataframe(balances)
     
     with tab2:
         if not df.empty:
