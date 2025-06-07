@@ -76,7 +76,7 @@ def get_sheet_data():
             
         df = pd.DataFrame(processed_data)
         # Отладочный вывод
-        #st.write("Загруженные данные из Google Sheets:", df)
+        st.write("Загруженные данные из Google Sheets:", df)
         return df, sheet
     except Exception as e:
         st.error(f"Ошибка загрузки: {str(e)}")
@@ -97,7 +97,7 @@ def update_sheet(sheet, df):
                 lambda x: x.strftime('%d.%m.%Y') if pd.notnull(x) else ''
             )
         # Отладочный вывод
-        #st.write("Данные для сохранения в Google Sheets:", df_to_save)
+        st.write("Данные для сохранения в Google Sheets:", df_to_save)
         sheet.clear()
         set_with_dataframe(sheet, df_to_save)
     except Exception as e:
@@ -213,7 +213,27 @@ def main():
         with st.form(key="settlement_form", clear_on_submit=True):
             payer = st.selectbox("Кто платил", DEFAULT_PEOPLE, key="settlement_payer")
             recipient = st.selectbox("Кому", DEFAULT_PEOPLE, key="settlement_recipient")
-            amount = st.number_input("Сумма", min_value=0.0, value=None, format="%.2f", key="settlement_amount")
+            
+            # Calculate balances to get the debt of the selected payer
+            balances = calculate_debts(df)
+            payer_debt = 0.0
+            if not balances.empty:
+                payer_balance = balances[balances["Участник"] == payer]["Баланс"]
+                if not payer_balance.empty and payer_balance.iloc[0] < 0:
+                    payer_debt = -payer_balance.iloc[0]
+            
+            # Button to fill the amount with the payer's debt
+            if st.button("Погасить весь долг"):
+                st.session_state["settlement_amount"] = payer_debt
+            
+            # Initialize amount with session state if it exists, otherwise None
+            amount = st.number_input(
+                "Сумма",
+                min_value=0.0,
+                value=st.session_state.get("settlement_amount", None),
+                format="%.2f",
+                key="settlement_amount"
+            )
             date = st.date_input("Дата", value=datetime.today(), key="settlement_date")
             
             if st.form_submit_button("Добавить"):
