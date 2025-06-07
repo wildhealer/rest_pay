@@ -75,10 +75,8 @@ def get_sheet_data():
             processed_data.append(processed_row)
             
         df = pd.DataFrame(processed_data)
-        
         # Отладочный вывод
-        #st.write("Загруженные данные из Google Sheets:", df)
-        
+        st.write("Загруженные данные из Google Sheets:", df)
         return df, sheet
     except Exception as e:
         st.error(f"Ошибка загрузки: {str(e)}")
@@ -98,10 +96,8 @@ def update_sheet(sheet, df):
             df_to_save['Дата'] = df_to_save['Дата'].apply(
                 lambda x: x.strftime('%d.%m.%Y') if pd.notnull(x) else ''
             )
-            
         # Отладочный вывод
-        #st.write("Данные для сохранения в Google Sheets:", df_to_save)
-        
+        st.write("Данные для сохранения в Google Sheets:", df_to_save)
         sheet.clear()
         set_with_dataframe(sheet, df_to_save)
     except Exception as e:
@@ -139,13 +135,27 @@ def main():
     
     df, sheet = get_sheet_data()
     
+    # Инициализация session_state для управления состоянием полей ввода суммы
+    if 'expense_amount_cleared' not in st.session_state:
+        st.session_state.expense_amount_cleared = False
+    if 'settlement_amount_cleared' not in st.session_state:
+        st.session_state.settlement_amount_cleared = False
+
     tab1, tab2, tab3 = st.tabs(["Добавить траты", "Управление", "Рассчёты"])
     
     with tab1:
         with st.form(key="expense_form", clear_on_submit=True):
             payer = st.selectbox("Кто оплатил", DEFAULT_PEOPLE)
             description = st.text_input("Описание")
-            amount = st.number_input("Сумма", min_value=0.0, value=0.0, format="%.2f")
+            
+            # Управление полем суммы
+            amount_key = "expense_amount"
+            if not st.session_state.expense_amount_cleared:
+                amount = st.number_input("Сумма", min_value=0.0, value=0.0, format="%.2f", key=amount_key)
+                st.session_state.expense_amount_cleared = True
+            else:
+                amount = st.number_input("Сумма", min_value=0.0, value=None, format="%.2f", key=amount_key, placeholder="Введите сумму")
+            
             date = st.date_input("Дата", value=datetime.today())
             
             st.write("Участники:")
@@ -166,6 +176,7 @@ def main():
                     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                     update_sheet(sheet, df)
                     st.success("Добавлено!")
+                    st.session_state.expense_amount_cleared = False  # Сбрасываем состояние после отправки
                     st.rerun()
     
     with tab2:
@@ -217,7 +228,15 @@ def main():
         with st.form(key="settlement_form", clear_on_submit=True):
             payer = st.selectbox("Кто платил", DEFAULT_PEOPLE, key="settlement_payer")
             recipient = st.selectbox("Кому", DEFAULT_PEOPLE, key="settlement_recipient")
-            amount = st.number_input("Сумма", min_value=0.0, value=0.0, format="%.2f", key="settlement_amount")
+            
+            # Управление полем суммы
+            settlement_amount_key = "settlement_amount"
+            if not st.session_state.settlement_amount_cleared:
+                amount = st.number_input("Сумма", min_value=0.0, value=0.0, format="%.2f", key=settlement_amount_key)
+                st.session_state.settlement_amount_cleared = True
+            else:
+                amount = st.number_input("Сумма", min_value=0.0, value=None, format="%.2f", key=settlement_amount_key, placeholder="Введите сумму")
+            
             date = st.date_input("Дата", value=datetime.today(), key="settlement_date")
             
             if st.form_submit_button("Добавить"):
@@ -234,6 +253,7 @@ def main():
                     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                     update_sheet(sheet, df)
                     st.success("Рассчёт добавлен!")
+                    st.session_state.settlement_amount_cleared = False  # Сбрасываем состояние после отправки
                     st.rerun()
 
 if __name__ == "__main__":
