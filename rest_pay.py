@@ -76,7 +76,7 @@ def get_sheet_data():
             
         df = pd.DataFrame(processed_data)
         # Отладочный вывод
-        st.write("Загруженные данные из Google Sheets:", df)
+        #st.write("Загруженные данные из Google Sheets:", df)
         return df, sheet
     except Exception as e:
         st.error(f"Ошибка загрузки: {str(e)}")
@@ -97,7 +97,7 @@ def update_sheet(sheet, df):
                 lambda x: x.strftime('%d.%m.%Y') if pd.notnull(x) else ''
             )
         # Отладочный вывод
-        st.write("Данные для сохранения в Google Sheets:", df_to_save)
+        #st.write("Данные для сохранения в Google Sheets:", df_to_save)
         sheet.clear()
         set_with_dataframe(sheet, df_to_save)
     except Exception as e:
