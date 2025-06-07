@@ -35,10 +35,15 @@ def safe_float(value):
     if value in [None, "", " "]:
         return 0.0
     try:
+        if isinstance(value, (int, float)):
+            return float(value)
         if isinstance(value, str):
+            # Удаляем пробелы и заменяем запятую на точку
             value = value.replace(',', '.').replace(' ', '')
-        return float(value)
-    except (ValueError, TypeError):
+            return float(value)
+        return 0.0
+    except (ValueError, TypeError) as e:
+        st.warning(f"Ошибка преобразования числа '{value}': {str(e)}")
         return 0.0
 
 def parse_date(value):
@@ -63,13 +68,15 @@ def get_sheet_data():
                 "Кто платил": str(row.get("Кто платил", "")),
                 "Описание трат": str(row.get("Описание трат", "")),
                 "Сумма чека": safe_float(row.get("Сумма чека", 0)),
-                "Дата": parse_date(row.get("Дата", "")),  # Оставляем как datetime
+                "Дата": parse_date(row.get("Дата", "")),
                 **{p: int(row.get(p, 0)) if row.get(p, 0) in [1, 0] else 0 
                    for p in DEFAULT_PEOPLE}
             }
             processed_data.append(processed_row)
             
         df = pd.DataFrame(processed_data)
+        # Отладочный вывод
+        st.write("Загруженные данные из Google Sheets:", df)
         return df, sheet
     except Exception as e:
         st.error(f"Ошибка загрузки: {str(e)}")
@@ -79,12 +86,18 @@ def update_sheet(sheet, df):
     if sheet is None:
         return
     try:
-        # Преобразуем datetime в строку только при сохранении в Google Sheets
+        # Преобразуем числа и даты для сохранения в Google Sheets
         df_to_save = df.copy()
+        if 'Сумма чека' in df_to_save.columns:
+            df_to_save['Сумма чека'] = df_to_save['Сумма чека'].apply(
+                lambda x: f"{x:.2f}" if pd.notnull(x) else '0.00'
+            )
         if 'Дата' in df_to_save.columns:
             df_to_save['Дата'] = df_to_save['Дата'].apply(
                 lambda x: x.strftime('%d.%m.%Y') if pd.notnull(x) else ''
             )
+        # Отладочный вывод
+        st.write("Данные для сохранения в Google Sheets:", df_to_save)
         sheet.clear()
         set_with_dataframe(sheet, df_to_save)
     except Exception as e:
@@ -128,7 +141,7 @@ def main():
         with st.form(key="expense_form", clear_on_submit=True):
             payer = st.selectbox("Кто оплатил", DEFAULT_PEOPLE)
             description = st.text_input("Описание")
-            amount = st.number_input("Сумма", min_value=0.0, value=1000.0, format="%.2f")
+            amount = st.number_input("Сумма", min_value=0.0, value=0.0, format="%.2f")
             date = st.date_input("Дата", value=datetime.today())
             
             st.write("Участники:")
@@ -143,7 +156,7 @@ def main():
                         "Кто платил": payer,
                         "Описание трат": description,
                         "Сумма чека": safe_float(amount),
-                        "Дата": date,  # Сохраняем как datetime
+                        "Дата": date,
                         **{p: 1 if participants[p] else 0 for p in DEFAULT_PEOPLE}
                     }
                     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
@@ -158,7 +171,7 @@ def main():
                 column_config={
                     "Кто платил": st.column_config.SelectboxColumn(options=DEFAULT_PEOPLE),
                     "Сумма чека": st.column_config.NumberColumn(format="%.2f"),
-                    "Дата": st.column_config.DateColumn(format="DD.MM.YYYY"),  # Форматируем отображение
+                    "Дата": st.column_config.DateColumn(format="DD.MM.YYYY"),
                     **{p: st.column_config.CheckboxColumn() for p in DEFAULT_PEOPLE}
                 },
                 num_rows="dynamic",
