@@ -3,6 +3,14 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 from gspread_dataframe import set_with_dataframe
+import locale
+from datetime import datetime
+
+# Устанавливаем локаль для корректной обработки чисел и дат
+try:
+    locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')  # Русская локаль для запятых и формата дат
+except locale.Error:
+    locale.setlocale(locale.LC_ALL, '')  # Используем системную локаль по умолчанию
 
 # Настройки
 SHEET_ID = "12vLykJcM1y_mO8yFcrk8sqXcDa915vH1UbrrKYvncFk"
@@ -23,11 +31,26 @@ def connect_to_gsheet():
     return gspread.authorize(credentials)
 
 def safe_float(value):
-    """Конвертирует значение в float безопасно"""
+    """Конвертирует значение в float, поддерживая запятую и точку как десятичный разделитель"""
+    if value in [None, "", " "]:
+        return 0.0
     try:
-        return float(value) if value not in [None, ""] else 0.0
+        # Заменяем запятую на точку и удаляем пробелы-разделители тысяч
+        if isinstance(value, str):
+            value = value.replace(',', '.').replace(' ', '')
+        return float(value)
     except (ValueError, TypeError):
         return 0.0
+
+def parse_date(value):
+    """Конвертирует строку даты в объект datetime, поддерживая национальные форматы"""
+    if value in [None, "", " "]:
+        return None
+    try:
+        # Парсим дату в формате ДД.ММ.ГГГГ или других национальных форматах
+        return pd.to_datetime(value, dayfirst=True)
+    except (ValueError, TypeError):
+        return None
 
 def get_sheet_data():
     try:
@@ -42,15 +65,19 @@ def get_sheet_data():
                 "Кто платил": str(row.get("Кто платил", "")),
                 "Описание трат": str(row.get("Описание трат", "")),
                 "Сумма чека": safe_float(row.get("Сумма чека", 0)),
+                "Дата": parse_date(row.get("Дата", "")),  # Добавляем обработку даты
                 **{p: int(row.get(p, 0)) if row.get(p, 0) in [1, 0] else 0 
                    for p in DEFAULT_PEOPLE}
             }
             processed_data.append(processed_row)
             
-        return pd.DataFrame(processed_data), sheet
+        df = pd.DataFrame(processed_data)
+        # Форматируем дату для отображения
+        df['Дата'] = df['Дата'].dt.strftime('%d.%m.%Y') if 'Дата' in df.columns else None
+        return df, sheet
     except Exception as e:
         st.error(f"Ошибка загрузки: {str(e)}")
-        return pd.DataFrame(columns=["Кто платил", "Описание трат", "Сумма чека"] + DEFAULT_PEOPLE), None
+        return pd.DataFrame(columns=["Кто платил", "Описание трат", "Сумма чека", "Дата"] + DEFAULT_PEOPLE), None
 
 def update_sheet(sheet, df):
     if sheet is None:
@@ -99,7 +126,8 @@ def main():
         with st.form(key="expense_form", clear_on_submit=True):
             payer = st.selectbox("Кто оплатил", DEFAULT_PEOPLE)
             description = st.text_input("Описание")
-            amount = st.number_input("Сумма", min_value=0, value=1000)
+            amount = st.number_input("Сумма", min_value=0.0, value=1000.0, format="%.2f")
+            date = st.date_input("Дата", value=datetime.today())
             
             st.write("Участники:")
             participants = {p: st.checkbox(p, value=True, key=f"part_{p}") 
@@ -112,7 +140,8 @@ def main():
                     new_row = {
                         "Кто платил": payer,
                         "Описание трат": description,
-                        "Сумма чека": float(amount),
+                        "Сумма чека": safe_float(amount),
+                        "Дата": date.strftime('%d.%m.%Y'),
                         **{p: 1 if participants[p] else 0 for p in DEFAULT_PEOPLE}
                     }
                     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
@@ -127,6 +156,7 @@ def main():
                 column_config={
                     "Кто платил": st.column_config.SelectboxColumn(options=DEFAULT_PEOPLE),
                     "Сумма чека": st.column_config.NumberColumn(format="%.2f"),
+                    "Дата": st.column_config.DateColumn(format="DD.MM.YYYY"),
                     **{p: st.column_config.CheckboxColumn() for p in DEFAULT_PEOPLE}
                 },
                 num_rows="dynamic",
