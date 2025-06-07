@@ -133,10 +133,11 @@ def calculate_debts(df):
 def main():
     st.title("🍽️ Калькулятор долгов")
     
-    # Inject custom CSS for the button
+    # Inject custom CSS for the "Добавить" buttons in forms
     st.markdown("""
         <style>
-        div.stButton > button {
+        /* Target only form submit buttons with label "Добавить" */
+        div[data-testid="stForm"] button[kind="formSubmit"][aria-label="Добавить"] {
             background-color: #90EE90; /* Light green */
             color: black;
             width: 100%;
@@ -144,7 +145,7 @@ def main():
             border: none;
             border-radius: 5px;
         }
-        div.stButton > button:hover {
+        div[data-testid="stForm"] button[kind="formSubmit"][aria-label="Добавить"]:hover {
             background-color: #78DA78; /* Slightly darker green on hover */
             color: black;
         }
