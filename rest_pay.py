@@ -76,7 +76,7 @@ def get_sheet_data():
             
         df = pd.DataFrame(processed_data)
         # Отладочный вывод
-        #st.write("Загруженные данные из Google Sheets:", df)
+        st.write("Загруженные данные из Google Sheets:", df)
         return df, sheet
     except Exception as e:
         st.error(f"Ошибка загрузки: {str(e)}")
@@ -97,7 +97,7 @@ def update_sheet(sheet, df):
                 lambda x: x.strftime('%d.%m.%Y') if pd.notnull(x) else ''
             )
         # Отладочный вывод
-        #st.write("Данные для сохранения в Google Sheets:", df_to_save)
+        st.write("Данные для сохранения в Google Sheets:", df_to_save)
         sheet.clear()
         set_with_dataframe(sheet, df_to_save)
     except Exception as e:
@@ -136,8 +136,9 @@ def main():
     # Inject custom CSS for the "Добавить" buttons in forms
     st.markdown("""
         <style>
-        /* Target only form submit buttons with label "Добавить" */
-        div[data-testid="stForm"] button[kind="formSubmit"][aria-label="Добавить"] {
+        /* Target only form submit buttons with specific keys */
+        div[data-testid="stForm"] button[data-testid="add_expense_button"],
+        div[data-testid="stForm"] button[data-testid="add_settlement_button"] {
             background-color: #90EE90; /* Light green */
             color: black;
             width: 100%;
@@ -145,7 +146,8 @@ def main():
             border: none;
             border-radius: 5px;
         }
-        div[data-testid="stForm"] button[kind="formSubmit"][aria-label="Добавить"]:hover {
+        div[data-testid="stForm"] button[data-testid="add_expense_button"]:hover,
+        div[data-testid="stForm"] button[data-testid="add_settlement_button"]:hover {
             background-color: #78DA78; /* Slightly darker green on hover */
             color: black;
         }
@@ -171,7 +173,7 @@ def main():
                 with cols[idx]:
                     participants[person] = st.checkbox(person, value=True, key=f"part_{person}")
             
-            if st.form_submit_button("Добавить"):
+            if st.form_submit_button("Добавить", key="add_expense_button"):
                 if not description:
                     st.error("Введите описание")
                 else:
@@ -279,7 +281,7 @@ def main():
             )
             date = st.date_input("Дата", value=datetime.today(), key="settlement_date")
             
-            if st.form_submit_button("Добавить"):
+            if st.form_submit_button("Добавить", key="add_settlement_button"):
                 if payer == recipient:
                     st.error("Плательщик и получатель не могут быть одним и тем же лицом")
                 else:
