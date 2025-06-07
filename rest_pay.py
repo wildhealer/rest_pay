@@ -135,7 +135,7 @@ def main():
     
     df, sheet = get_sheet_data()
     
-    tab1, tab2 = st.tabs(["Добавить траты", "Управление"])
+    tab1, tab2, tab3 = st.tabs(["Добавить траты", "Управление", "Рассчёты"])
     
     with tab1:
         with st.form(key="expense_form", clear_on_submit=True):
@@ -208,6 +208,29 @@ def main():
                 st.success("Баланс сведен")
         else:
             st.warning("Нет данных")
+    
+    with tab3:
+        with st.form(key="settlement_form", clear_on_submit=True):
+            payer = st.selectbox("Кто платил", DEFAULT_PEOPLE, key="settlement_payer")
+            recipient = st.selectbox("Кому", DEFAULT_PEOPLE, key="settlement_recipient")
+            amount = st.number_input("Сумма", min_value=0.0, value=0.0, format="%.2f", key="settlement_amount")
+            date = st.date_input("Дата", value=datetime.today(), key="settlement_date")
+            
+            if st.form_submit_button("Добавить"):
+                if payer == recipient:
+                    st.error("Плательщик и получатель не могут быть одним и тем же лицом")
+                else:
+                    new_row = {
+                        "Кто платил": payer,
+                        "Описание трат": "рассчёт",
+                        "Сумма чека": safe_float(amount),
+                        "Дата": date,
+                        **{p: 1 if p == recipient else 0 for p in DEFAULT_PEOPLE}
+                    }
+                    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                    update_sheet(sheet, df)
+                    st.success("Рассчёт добавлен!")
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
