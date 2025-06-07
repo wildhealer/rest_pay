@@ -6,11 +6,11 @@ from gspread_dataframe import set_with_dataframe
 import locale
 from datetime import datetime
 
-# Устанавливаем локаль для корректной обработки чисел и дат
+# Устанавливаем локаль для корректной обработки чисел
 try:
-    locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')  # Русская локаль для запятых и формата дат
+    locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 except locale.Error:
-    locale.setlocale(locale.LC_ALL, '')  # Используем системную локаль по умолчанию
+    locale.setlocale(locale.LC_ALL, '')
 
 # Настройки
 SHEET_ID = "12vLykJcM1y_mO8yFcrk8sqXcDa915vH1UbrrKYvncFk"
@@ -35,7 +35,6 @@ def safe_float(value):
     if value in [None, "", " "]:
         return 0.0
     try:
-        # Заменяем запятую на точку и удаляем пробелы-разделители тысяч
         if isinstance(value, str):
             value = value.replace(',', '.').replace(' ', '')
         return float(value)
@@ -47,7 +46,6 @@ def parse_date(value):
     if value in [None, "", " "]:
         return None
     try:
-        # Парсим дату в формате ДД.ММ.ГГГГ или других национальных форматах
         return pd.to_datetime(value, dayfirst=True)
     except (ValueError, TypeError):
         return None
@@ -65,15 +63,13 @@ def get_sheet_data():
                 "Кто платил": str(row.get("Кто платил", "")),
                 "Описание трат": str(row.get("Описание трат", "")),
                 "Сумма чека": safe_float(row.get("Сумма чека", 0)),
-                "Дата": parse_date(row.get("Дата", "")),  # Добавляем обработку даты
+                "Дата": parse_date(row.get("Дата", "")),  # Оставляем как datetime
                 **{p: int(row.get(p, 0)) if row.get(p, 0) in [1, 0] else 0 
                    for p in DEFAULT_PEOPLE}
             }
             processed_data.append(processed_row)
             
         df = pd.DataFrame(processed_data)
-        # Форматируем дату для отображения
-        df['Дата'] = df['Дата'].dt.strftime('%d.%m.%Y') if 'Дата' in df.columns else None
         return df, sheet
     except Exception as e:
         st.error(f"Ошибка загрузки: {str(e)}")
@@ -83,8 +79,14 @@ def update_sheet(sheet, df):
     if sheet is None:
         return
     try:
+        # Преобразуем datetime в строку только при сохранении в Google Sheets
+        df_to_save = df.copy()
+        if 'Дата' in df_to_save.columns:
+            df_to_save['Дата'] = df_to_save['Дата'].apply(
+                lambda x: x.strftime('%d.%m.%Y') if pd.notnull(x) else ''
+            )
         sheet.clear()
-        set_with_dataframe(sheet, df)
+        set_with_dataframe(sheet, df_to_save)
     except Exception as e:
         st.error(f"Ошибка сохранения: {str(e)}")
 
@@ -141,7 +143,7 @@ def main():
                         "Кто платил": payer,
                         "Описание трат": description,
                         "Сумма чека": safe_float(amount),
-                        "Дата": date.strftime('%d.%m.%Y'),
+                        "Дата": date,  # Сохраняем как datetime
                         **{p: 1 if participants[p] else 0 for p in DEFAULT_PEOPLE}
                     }
                     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
@@ -156,7 +158,7 @@ def main():
                 column_config={
                     "Кто платил": st.column_config.SelectboxColumn(options=DEFAULT_PEOPLE),
                     "Сумма чека": st.column_config.NumberColumn(format="%.2f"),
-                    "Дата": st.column_config.DateColumn(format="DD.MM.YYYY"),
+                    "Дата": st.column_config.DateColumn(format="DD.MM.YYYY"),  # Форматируем отображение
                     **{p: st.column_config.CheckboxColumn() for p in DEFAULT_PEOPLE}
                 },
                 num_rows="dynamic",
