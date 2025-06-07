@@ -136,16 +136,19 @@ def main():
     # Inject custom CSS for the "Добавить" buttons in specific forms
     st.markdown("""
         <style>
-        /* Target form submit buttons in expense_form and settlement_form */
-        div[data-testid="stForm"] form button[kind="formSubmit"] {
+        /* Target submit buttons within specific form containers */
+        .expense-form button[kind="formSubmit"],
+        .settlement-form button[kind="formSubmit"] {
             background-color: #90EE90; /* Light green */
             color: black;
             width: 100%;
             padding: 10px;
             border: none;
             border-radius: 5px;
+            box-sizing: border-box;
         }
-        div[data-testid="stForm"] form button[kind="formSubmit"]:hover {
+        .expense-form button[kind="formSubmit"]:hover,
+        .settlement-form button[kind="formSubmit"]:hover {
             background-color: #78DA78; /* Slightly darker green on hover */
             color: black;
         }
