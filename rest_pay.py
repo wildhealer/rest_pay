@@ -5,7 +5,7 @@ from google.oauth2.service_account import Credentials
 from gspread_dataframe import set_with_dataframe
 
 # Настройки
-SHEET_ID = "1M2OrKITimaLlWAs3yTqchsESFNdUxitZnfQ65k4bIXI"
+SHEET_ID = "12vLykJcM1y_mO8yFcrk8sqXcDa915vH1UbrrKYvncFk"
 WORKSHEET_NAME = "test"
 DEFAULT_PEOPLE = ["Иха", "Влад", "Локи"]
 
