@@ -210,23 +210,37 @@ def main():
             st.warning("Нет данных")
     
     with tab3:
-        # Calculate balances to get the debt of the selected payer
+        # Calculate balances and transactions
         balances = calculate_debts(df)
+        debtors = balances[balances["Баланс"] < 0]
+        creditors = balances[balances["Баланс"] > 0]
+        transactions = []
+        for _, creditor in creditors.iterrows():
+            for _, debtor in debtors.iterrows():
+                amount = min(creditor["Баланс"], -debtor["Баланс"])
+                if amount > 1:
+                    transactions.append({
+                        "От": debtor["Участник"],
+                        "Кому": creditor["Участник"],
+                        "Сумма": round(amount, 2)
+                    })
         
-        # Button to fill the amount with the payer's debt (outside the form)
+        # Payer selection
         payer = st.selectbox("Кто платил", DEFAULT_PEOPLE, key="settlement_payer")
-        payer_debt = 0.0
-        if not balances.empty:
-            payer_balance = balances[balances["Участник"] == payer]["Баланс"]
-            if not payer_balance.empty and payer_balance.iloc[0] < 0:
-                payer_debt = -payer_balance.iloc[0]
+        recipient = st.selectbox("Кому", DEFAULT_PEOPLE, key="settlement_recipient")
+        
+        # Button to fill the amount with the specific debt (outside the form)
+        specific_debt = 0.0
+        if payer != recipient:
+            for transaction in transactions:
+                if transaction["От"] == payer and transaction["Кому"] == recipient:
+                    specific_debt = transaction["Сумма"]
+                    break
         
         if st.button("Погасить весь долг"):
-            st.session_state["settlement_amount"] = payer_debt
+            st.session_state["settlement_amount"] = specific_debt
         
         with st.form(key="settlement_form", clear_on_submit=True):
-            recipient = st.selectbox("Кому", DEFAULT_PEOPLE, key="settlement_recipient")
-            
             # Initialize amount with session state if it exists, otherwise None
             amount = st.number_input(
                 "Сумма",
