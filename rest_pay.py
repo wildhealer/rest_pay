@@ -133,12 +133,11 @@ def calculate_debts(df):
 def main():
     st.title("🍽️ Калькулятор долгов")
     
-    # Inject custom CSS for the "Добавить" buttons in forms
+    # Inject custom CSS for the "Добавить" buttons in specific forms
     st.markdown("""
         <style>
-        /* Target only form submit buttons with specific keys */
-        div[data-testid="stForm"] button[data-testid="add_expense_button"],
-        div[data-testid="stForm"] button[data-testid="add_settlement_button"] {
+        /* Target form submit buttons in expense_form and settlement_form */
+        div[data-testid="stForm"] form button[kind="formSubmit"] {
             background-color: #90EE90; /* Light green */
             color: black;
             width: 100%;
@@ -146,8 +145,7 @@ def main():
             border: none;
             border-radius: 5px;
         }
-        div[data-testid="stForm"] button[data-testid="add_expense_button"]:hover,
-        div[data-testid="stForm"] button[data-testid="add_settlement_button"]:hover {
+        div[data-testid="stForm"] form button[kind="formSubmit"]:hover {
             background-color: #78DA78; /* Slightly darker green on hover */
             color: black;
         }
@@ -173,7 +171,7 @@ def main():
                 with cols[idx]:
                     participants[person] = st.checkbox(person, value=True, key=f"part_{person}")
             
-            if st.form_submit_button("Добавить", key="add_expense_button"):
+            if st.form_submit_button("Добавить"):
                 if not description:
                     st.error("Введите описание")
                 else:
@@ -281,7 +279,7 @@ def main():
             )
             date = st.date_input("Дата", value=datetime.today(), key="settlement_date")
             
-            if st.form_submit_button("Добавить", key="add_settlement_button"):
+            if st.form_submit_button("Добавить"):
                 if payer == recipient:
                     st.error("Плательщик и получатель не могут быть одним и тем же лицом")
                 else:
