@@ -210,21 +210,22 @@ def main():
             st.warning("Нет данных")
     
     with tab3:
+        # Calculate balances to get the debt of the selected payer
+        balances = calculate_debts(df)
+        
+        # Button to fill the amount with the payer's debt (outside the form)
+        payer = st.selectbox("Кто платил", DEFAULT_PEOPLE, key="settlement_payer")
+        payer_debt = 0.0
+        if not balances.empty:
+            payer_balance = balances[balances["Участник"] == payer]["Баланс"]
+            if not payer_balance.empty and payer_balance.iloc[0] < 0:
+                payer_debt = -payer_balance.iloc[0]
+        
+        if st.button("Погасить весь долг"):
+            st.session_state["settlement_amount"] = payer_debt
+        
         with st.form(key="settlement_form", clear_on_submit=True):
-            payer = st.selectbox("Кто платил", DEFAULT_PEOPLE, key="settlement_payer")
             recipient = st.selectbox("Кому", DEFAULT_PEOPLE, key="settlement_recipient")
-            
-            # Calculate balances to get the debt of the selected payer
-            balances = calculate_debts(df)
-            payer_debt = 0.0
-            if not balances.empty:
-                payer_balance = balances[balances["Участник"] == payer]["Баланс"]
-                if not payer_balance.empty and payer_balance.iloc[0] < 0:
-                    payer_debt = -payer_balance.iloc[0]
-            
-            # Button to fill the amount with the payer's debt
-            if st.button("Погасить весь долг"):
-                st.session_state["settlement_amount"] = payer_debt
             
             # Initialize amount with session state if it exists, otherwise None
             amount = st.number_input(
