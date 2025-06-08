@@ -197,6 +197,29 @@ def main():
     
     with tab2:
         if not df.empty:
+            balances = calculate_debts(df)
+            st.dataframe(balances)
+            
+            # Расчет переводов
+            debtors = balances[balances["Баланс"] < 0]
+            creditors = balances[balances["Баланс"] > 0]
+            
+            transactions = []
+            for _, creditor in creditors.iterrows():
+                for _, debtor in debtors.iterrows():
+                    amount = min(creditor["Баланс"], -debtor["Баланс"])
+                    if amount > 1:
+                        transactions.append({
+                            "От": debtor["Участник"],
+                            "Кому": creditor["Участник"],
+                            "Сумма": round(amount, 2)
+                        })
+            
+            if transactions:
+                st.dataframe(pd.DataFrame(transactions))
+            else:
+                st.success("Баланс сведен")
+                
             edited_df = st.data_editor(
                 df,
                 column_config={
@@ -214,7 +237,7 @@ def main():
                 update_sheet(sheet, df)
                 st.success("Сохранено!")
                 st.rerun()
-                
+'''                
             balances = calculate_debts(df)
             st.dataframe(balances)
             
@@ -239,6 +262,7 @@ def main():
                 st.success("Баланс сведен")
         else:
             st.warning("Нет данных")
+'''
     
     with tab3:
         # Calculate balances and transactions
