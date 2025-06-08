@@ -260,9 +260,10 @@ def main():
                 st.dataframe(pd.DataFrame(transactions))
             else:
                 st.success("Баланс сведен")
+    '''
         else:
             st.warning("Нет данных")
-'''
+
     
     with tab3:
         # Calculate balances and transactions
