@@ -76,7 +76,7 @@ def get_sheet_data():
             
         df = pd.DataFrame(processed_data)
         # Отладочный вывод
-        #st.write("Загруженные данные из Google Sheets:", df)
+        st.write("Загруженные данные из Google Sheets:", df)
         return df, sheet
     except Exception as e:
         st.error(f"Ошибка загрузки: {str(e)}")
@@ -97,7 +97,7 @@ def update_sheet(sheet, df):
                 lambda x: x.strftime('%d.%m.%Y') if pd.notnull(x) else ''
             )
         # Отладочный вывод
-        #st.write("Данные для сохранения в Google Sheets:", df_to_save)
+        st.write("Данные для сохранения в Google Sheets:", df_to_save)
         sheet.clear()
         set_with_dataframe(sheet, df_to_save)
     except Exception as e:
@@ -131,7 +131,7 @@ def calculate_debts(df):
     })
 
 def main():
-    st.title("🍽️ Не в деньгах счастье!")
+    st.title("🍽️ Калькулятор долгов")
     
     # Inject custom CSS for the "Добавить" buttons in specific forms
     st.markdown("""
@@ -160,6 +160,8 @@ def main():
     tab1, tab2, tab3 = st.tabs(["Добавить траты", "Управление", "Рассчёты"])
     
     with tab1:
+        # Wrap the form in a container with a custom class
+        st.markdown('<div class="expense-form">', unsafe_allow_html=True)
         with st.form(key="expense_form", clear_on_submit=True):
             payer = st.selectbox("Кто оплатил", DEFAULT_PEOPLE)
             description = st.text_input("Описание")
@@ -189,6 +191,7 @@ def main():
                     update_sheet(sheet, df)
                     st.success("Добавлено!")
                     st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
         
         # Display balances below the form
         st.subheader("Текущий баланс")
@@ -197,25 +200,6 @@ def main():
     
     with tab2:
         if not df.empty:
-            # Расчет переводов
-            debtors = balances[balances["Баланс"] < 0]
-            creditors = balances[balances["Баланс"] > 0]
-            transactions = []
-            for _, creditor in creditors.iterrows():
-                for _, debtor in debtors.iterrows():
-                    amount = min(creditor["Баланс"], -debtor["Баланс"])
-                    if amount > 1:
-                        transactions.append({
-                            "От": debtor["Участник"],
-                            "Кому": creditor["Участник"],
-                            "Сумма": round(amount, 2)
-                        })
-            
-            if transactions:
-                st.dataframe(pd.DataFrame(transactions))
-            else:
-                st.success("Баланс сведен")
-            
             edited_df = st.data_editor(
                 df,
                 column_config={
@@ -241,25 +225,23 @@ def main():
             debtors = balances[balances["Баланс"] < 0]
             creditors = balances[balances["Баланс"] > 0]
             
-            #transactions = []
-            #for _, creditor in creditors.iterrows():
-            #    for _, debtor in debtors.iterrows():
-            #        amount = min(creditor["Баланс"], -debtor["Баланс"])
-            #        if amount > 1:
-            #            transactions.append({
-            #                "От": debtor["Участник"],
-            #                "Кому": creditor["Участник"],
-            #                "Сумма": round(amount, 2)
-            #            })
-            #
-            #if transactions:
-            #    st.dataframe(pd.DataFrame(transactions))
-            #else:
-            #    st.success("Баланс сведен")
-
+            transactions = []
+            for _, creditor in creditors.iterrows():
+                for _, debtor in debtors.iterrows():
+                    amount = min(creditor["Баланс"], -debtor["Баланс"])
+                    if amount > 1:
+                        transactions.append({
+                            "От": debtor["Участник"],
+                            "Кому": creditor["Участник"],
+                            "Сумма": round(amount, 2)
+                        })
+            
+            if transactions:
+                st.dataframe(pd.DataFrame(transactions))
+            else:
+                st.success("Баланс сведен")
         else:
             st.warning("Нет данных")
-
     
     with tab3:
         # Calculate balances and transactions
@@ -277,7 +259,7 @@ def main():
                         "Сумма": round(amount, 2)
                     })
         
-        # Payer selection
+        # Payer and recipient selection
         payer = st.selectbox("Кто платил", DEFAULT_PEOPLE, key="settlement_payer")
         recipient = st.selectbox("Кому", DEFAULT_PEOPLE, key="settlement_recipient")
         
@@ -290,14 +272,16 @@ def main():
                     break
         
         if st.button("Погасить весь долг"):
-            st.session_state["settlement_amount"] = specific_debt
+            st.session_state["temp_settlement_amount"] = specific_debt
         
+        # Wrap the form in a container with a custom class
+        st.markdown('<div class="settlement-form">', unsafe_allow_html=True)
         with st.form(key="settlement_form", clear_on_submit=True):
-            # Initialize amount with session state if it exists, otherwise None
+            # Initialize amount without session state conflict
             amount = st.number_input(
                 "Сумма",
                 min_value=0.0,
-                value=st.session_state.get("settlement_amount", None),
+                value=st.session_state.get("temp_settlement_amount", None),
                 format="%.2f",
                 key="settlement_amount"
             )
@@ -316,8 +300,12 @@ def main():
                     }
                     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                     update_sheet(sheet, df)
+                    # Clear the temp amount after submission
+                    if "temp_settlement_amount" in st.session_state:
+                        del st.session_state["temp_settlement_amount"]
                     st.success("Рассчёт добавлен!")
                     st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
