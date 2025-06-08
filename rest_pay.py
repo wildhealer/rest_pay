@@ -197,7 +197,9 @@ def main():
     
     with tab2:
         if not df.empty:
-
+            # Расчет переводов
+            debtors = balances[balances["Баланс"] < 0]
+            creditors = balances[balances["Баланс"] > 0]
             transactions = []
             for _, creditor in creditors.iterrows():
                 for _, debtor in debtors.iterrows():
