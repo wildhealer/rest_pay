@@ -197,6 +197,22 @@ def main():
     
     with tab2:
         if not df.empty:
+
+            transactions = []
+            for _, creditor in creditors.iterrows():
+                for _, debtor in debtors.iterrows():
+                    amount = min(creditor["Баланс"], -debtor["Баланс"])
+                    if amount > 1:
+                        transactions.append({
+                            "От": debtor["Участник"],
+                            "Кому": creditor["Участник"],
+                            "Сумма": round(amount, 2)
+                        })
+            
+            if transactions:
+                st.dataframe(pd.DataFrame(transactions))
+            else:
+                st.success("Баланс сведен")
             
             edited_df = st.data_editor(
                 df,
